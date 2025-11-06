@@ -2,11 +2,14 @@
 import { useState, useEffect } from "react"
 import { fetchWithAuth, postWithAuth } from "@/lib/api"
 import Header from "@/components/Header"
+import { useAuth } from "@/context/AuthContext"
 
 export default function GestionClientes() {
   const [clientes, setClientes] = useState([])
   const [search, setSearch] = useState("")
-  const [form, setForm] = useState({ name: "", email: "", ownerId: "", ownerUsername: "" })
+  const [form, setForm] = useState({ name: "", email: "", ownerId: ""})
+  const { role } = useAuth() // ✅ solo user
+  
 
   const refresh = () => fetchWithAuth("/customers").then(setClientes)
 
@@ -19,9 +22,8 @@ export default function GestionClientes() {
       name: form.name,
       email: form.email,
       ownerId: Number(form.ownerId),
-      ownerUsername: form.ownerUsername,
     })
-    setForm({ name: "", email: "", ownerId: "", ownerUsername: "" }) // limpiar inputs
+    setForm({ name: "", email: "", ownerId: ""}) // limpiar inputs
     refresh() // ✅ actualizar tabla sin recargar
   }
 
@@ -93,12 +95,7 @@ export default function GestionClientes() {
                 onChange={(e) => setForm({ ...form, ownerId: e.target.value })}
               />
 
-              <input
-                className="px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200"
-                placeholder="Owner Username"
-                value={form.ownerUsername}
-                onChange={(e) => setForm({ ...form, ownerUsername: e.target.value })}
-              />
+
 
               <button
                 onClick={crearCliente}
@@ -129,6 +126,7 @@ export default function GestionClientes() {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Owner
                     </th>
+
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">

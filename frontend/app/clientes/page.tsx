@@ -4,10 +4,12 @@ import { useEffect, useState } from "react"
 import { fetchWithAuth } from "@/lib/api"
 import Link from "next/link"
 import Header from "@/components/Header"
+import { useAuth } from "@/context/AuthContext"
 
 export default function MisClientes() {
   const [clientes, setClientes] = useState([])
   const [search, setSearch] = useState("")
+  
 
   useEffect(() => {
     fetchWithAuth("/customers/my").then(setClientes)

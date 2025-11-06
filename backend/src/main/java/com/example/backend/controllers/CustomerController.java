@@ -28,20 +28,37 @@ public class CustomerController {
   private final CustomerRepository customerRepository;
 
   @PostMapping
-  public Customer createCustomer(
+  public CustomerResponse createCustomer(
     @RequestBody CustomerCreateRequest request,
     Authentication auth
   ) {
-    User owner = userRepository
-      .findByUsername(auth.getName())
-      .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    boolean isAdmin = auth
+      .getAuthorities()
+      .stream()
+      .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+    User owner;
+
+    if (isAdmin) {
+      // ✅ Si es admin, tomamos el ownerId enviado en la request
+      owner = userRepository
+        .findById(request.getOwnerId())
+        .orElseThrow(() -> new RuntimeException("Owner no encontrado"));
+    } else {
+      // ✅ Si no es admin, el dueño es el usuario autenticado
+      owner = userRepository
+        .findByUsername(auth.getName())
+        .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    }
 
     Customer customer = new Customer();
     customer.setName(request.getName());
     customer.setEmail(request.getEmail());
     customer.setOwner(owner);
 
-    return customerRepository.save(customer);
+    customerRepository.save(customer);
+
+    return CustomerMapper.toResponse(customer);
   }
 
   @GetMapping
