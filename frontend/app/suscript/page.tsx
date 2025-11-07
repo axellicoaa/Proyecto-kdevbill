@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { fetchWithAuth } from "@/lib/api"
 import Header from "@/components/Header"
+import { useToast } from "@/context/ToastContext";
+
 
 export default function SuscripcionesPage() {
   const [subs, setSubs] = useState([])
@@ -11,6 +13,7 @@ export default function SuscripcionesPage() {
   const [showRenewModal, setShowRenewModal] = useState(false)
   const [selectedSub, setSelectedSub] = useState<any>(null)
   const [filterStatus, setFilterStatus] = useState("ALL")
+  const { showToast } = useToast();
 
   const [form, setForm] = useState({
     customerId: "",
@@ -25,38 +28,50 @@ export default function SuscripcionesPage() {
 
   const refresh = () => fetchWithAuth("/subscriptions").then(setSubs)
 
-  const createSub = async () => {
-    await fetchWithAuth("/subscriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    })
-    setShowCreateModal(false)
-    refresh()
-  }
+  const handleRequest = async (callback: () => Promise<any>, successMessage: string) => {
+    try {
+      await callback();
+      showToast(successMessage, "success");
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || "Ocurrió un error", "error");
+    }
+  };
 
-  const updateSub = async () => {
-    await fetchWithAuth(`/subscriptions/${selectedSub.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        newPlanId: form.planId || null,
-        newBillingCycle: form.billingCycle || null,
-        newStatus: form.status || selectedSub.status,
-      }),
-    })
+  const createSub = () =>
+    handleRequest(
+      () =>
+        fetchWithAuth("/subscriptions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        }),
+      "Suscripción creada exitosamente ✅"
+    ).then(() => setShowCreateModal(false));
 
-    setShowEditModal(false)
-    refresh()
-  }
+  const updateSub = () =>
+    handleRequest(
+      () =>
+        fetchWithAuth(`/subscriptions/${selectedSub.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            newPlanId: form.planId || null,
+            newBillingCycle: form.billingCycle || null,
+            newStatus: form.status || selectedSub.status,
+          }),
+        }),
+      "Suscripción actualizada ✅"
+    ).then(() => setShowEditModal(false));
 
-  const renewSub = async () => {
-    await fetchWithAuth(`/subscriptions/${selectedSub.id}/renew`, {
-      method: "POST",
-    })
-    setShowRenewModal(false)
-    refresh()
-  }
+  const renewSub = () =>
+    handleRequest(
+      () =>
+        fetchWithAuth(`/subscriptions/${selectedSub.id}/renew`, {
+          method: "POST",
+        }),
+      "Suscripción renovada y factura generada 💳✅"
+    ).then(() => setShowRenewModal(false));
 
   const filteredSubs = subs.filter((s: any) => (filterStatus === "ALL" ? true : s.status === filterStatus))
 
@@ -96,11 +111,10 @@ export default function SuscripcionesPage() {
                   <button
                     key={status}
                     onClick={() => setFilterStatus(status)}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                      filterStatus === status
-                        ? "bg-gray-900 text-white shadow-lg"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${filterStatus === status
+                      ? "bg-gray-900 text-white shadow-lg"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
                   >
                     {status === "ALL"
                       ? "Todos"
@@ -126,6 +140,8 @@ export default function SuscripcionesPage() {
                     <th className="px-6 py-4 text-left text-sm font-semibold">Estado</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">Próx. Facturación</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">Owner</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Price</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Monthly/Yearly</th>
                     <th className="px-6 py-4 text-center text-sm font-semibold">Acciones</th>
                   </tr>
                 </thead>
@@ -172,6 +188,17 @@ export default function SuscripcionesPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-gray-700">{s.ownerUsername}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-gray-700">
+                          ${s.billingCycle === "MONTHLY" ? s.monthlyPrice : s.yearlyPrice}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <span className="text-gray-700">
+                          {s.billingCycle === "MONTHLY" ? "Mensual" : "Anual"}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4">

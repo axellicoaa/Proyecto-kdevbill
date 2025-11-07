@@ -57,17 +57,12 @@ public class SubscriptionController {
   }
 
   @PutMapping("/{id}")
-  public SubscriptionResponse update(
+  public SubscriptionResponse updateSubscription(
     @PathVariable Long id,
     @RequestBody SubscriptionUpdateRequest request,
-    Authentication authentication
+    Authentication auth
   ) {
-    return subscriptionService.updateSubscription(
-      id,
-      request,
-      auth.getUserId(authentication),
-      auth.isAdmin(authentication)
-    );
+    return subscriptionService.updateSubscription(id, request, auth);
   }
 
   @PostMapping("/{id}/renew")

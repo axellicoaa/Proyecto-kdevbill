@@ -8,17 +8,22 @@ import com.example.backend.entities.Customer;
 import com.example.backend.entities.Invoice;
 import com.example.backend.entities.InvoiceStatus;
 import com.example.backend.entities.Plan;
+import com.example.backend.entities.Role;
 import com.example.backend.entities.Subscription;
 import com.example.backend.entities.SubscriptionStatus;
+import com.example.backend.entities.User;
 import com.example.backend.mappers.SubscriptionMapper;
 import com.example.backend.repositories.CustomerRepository;
 import com.example.backend.repositories.InvoiceRepository;
 import com.example.backend.repositories.PlanRepository;
 import com.example.backend.repositories.SubscriptionRepository;
+import com.example.backend.repositories.UserRepository;
+import jakarta.transaction.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,6 +34,7 @@ public class SubscriptionService {
   private final CustomerRepository customerRepository;
   private final PlanRepository planRepository;
   private final InvoiceRepository invoiceRepository;
+  private final UserRepository userRepository;
 
   public SubscriptionResponse createSubscription(
     SubscriptionCreateRequest request,
@@ -109,43 +115,48 @@ public class SubscriptionService {
       .toList();
   }
 
+  @Transactional
   public SubscriptionResponse updateSubscription(
     Long id,
-    SubscriptionUpdateRequest request,
-    Long userId,
-    boolean isAdmin
+    SubscriptionUpdateRequest req,
+    Authentication auth
   ) {
     Subscription subscription = subscriptionRepository
       .findById(id)
       .orElseThrow(() -> new RuntimeException("Suscripción no encontrada"));
 
-    // Solo ADMIN o dueño puede modificar
+    User user = userRepository
+      .findByUsername(auth.getName())
+      .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+    boolean isAdmin = user.getRole().equals(Role.ADMIN);
+
+    // ✅ Validación correcta: si no es admin, solo puede modificar sus propias suscripciones
     if (
-      !isAdmin && !subscription.getCustomer().getOwner().getId().equals(userId)
+      !isAdmin &&
+      !subscription.getCustomer().getOwner().getId().equals(user.getId())
     ) {
-      throw new RuntimeException("No autorizado");
+      throw new RuntimeException(
+        "No autorizado para modificar esta suscripción"
+      );
     }
 
-    // Cambiar plan
-    if (request.getNewPlanId() != null) {
+    // ✅ Cambiar el plan si se envió uno nuevo
+    if (req.getNewPlanId() != null) {
       Plan newPlan = planRepository
-        .findById(request.getNewPlanId())
+        .findById(req.getNewPlanId())
         .orElseThrow(() -> new RuntimeException("Plan no encontrado"));
       subscription.setPlan(newPlan);
     }
 
-    // Cambiar ciclo de facturación y recalcular siguiente fecha
-    if (request.getNewBillingCycle() != null) {
-      subscription.setNextBillingDate(
-        request.getNewBillingCycle() == BillingCycle.MONTHLY
-          ? subscription.getStartDate().plusMonths(1)
-          : subscription.getStartDate().plusYears(1)
-      );
+    // ✅ Cambiar ciclo de facturación
+    if (req.getNewBillingCycle() != null) {
+      subscription.setBillingCycle(req.getNewBillingCycle());
     }
 
-    // Cambiar estado
-    if (request.getNewStatus() != null) {
-      subscription.setStatus(request.getNewStatus());
+    // ✅ Cambiar estado
+    if (req.getNewStatus() != null) {
+      subscription.setStatus(req.getNewStatus());
     }
 
     subscriptionRepository.save(subscription);
@@ -161,17 +172,33 @@ public class SubscriptionService {
       .findById(id)
       .orElseThrow(() -> new RuntimeException("Suscripción no encontrada"));
 
+    // Validación de permisos
     if (
       !isAdmin && !subscription.getCustomer().getOwner().getId().equals(userId)
     ) {
       throw new RuntimeException("No autorizado");
     }
 
+    // ✅ VERIFICAR SI YA EXISTE UNA FACTURA PENDIENTE
+    boolean tieneFacturaPendiente =
+      invoiceRepository.existsBySubscriptionIdAndStatus(
+        subscription.getId(),
+        InvoiceStatus.OPEN
+      );
+
+    if (tieneFacturaPendiente) {
+      throw new RuntimeException(
+        "Ya existe una factura pendiente para esta suscripción. No se puede renovar nuevamente."
+      );
+    }
+
+    // ✅ Calcular monto según ciclo
     Plan plan = subscription.getPlan();
     double amount = subscription.getBillingCycle() == BillingCycle.MONTHLY
       ? plan.getPriceMonthly()
       : plan.getPriceYearly();
 
+    // ✅ Crear nueva factura
     Invoice invoice = Invoice.builder()
       .subscription(subscription)
       .amount(amount)
@@ -182,7 +209,7 @@ public class SubscriptionService {
 
     invoiceRepository.save(invoice);
 
-    // Actualizar fecha de próximo cobro
+    // ✅ Actualizar fecha de próxima facturación
     subscription.setNextBillingDate(
       subscription.getBillingCycle() == BillingCycle.MONTHLY
         ? subscription.getNextBillingDate().plusMonths(1)

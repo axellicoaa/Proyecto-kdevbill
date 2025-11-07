@@ -1,53 +1,34 @@
-/* package com.example.backend.config;
+package com.example.backend.config;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
-  /* // Manejo de RuntimeException (errores custom)
-  @ExceptionHandler(RuntimeException.class)
-  public ResponseEntity<ErrorResponse> handleRuntime(RuntimeException ex) {
-    ErrorResponse response = ErrorResponse.builder()
-      .message(ex.getMessage())
-      .status(HttpStatus.BAD_REQUEST.value())
-      .timestamp(LocalDateTime.now())
-      .build();
 
-    return ResponseEntity.badRequest().body(response);
+  @ExceptionHandler(RuntimeException.class)
+  public ResponseEntity<Object> handleRuntime(RuntimeException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+      new ErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST.value())
+    );
   }
 
-  // Manejo de validaciones @Valid
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<ErrorResponse> handleValidation(
+  public ResponseEntity<Object> handleValidation(
     MethodArgumentNotValidException ex
   ) {
-    String errorMessage = ex
+    String message = ex
       .getBindingResult()
-      .getFieldErrors()
-      .stream()
-      .map(error -> error.getField() + " " + error.getDefaultMessage())
-      .findFirst()
-      .orElse("Datos inválidos");
-
-    ErrorResponse response = ErrorResponse.builder()
-      .message(errorMessage)
-      .status(HttpStatus.BAD_REQUEST.value())
-      .timestamp(LocalDateTime.now())
-      .build();
-
-    return ResponseEntity.badRequest().body(response);
+      .getAllErrors()
+      .get(0)
+      .getDefaultMessage();
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+      new ErrorResponse(message, HttpStatus.BAD_REQUEST.value())
+    );
   }
 
-  // Manejo general (fallback)
-  @ExceptionHandler(Exception.class)
-  public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
-    ErrorResponse response = ErrorResponse.builder()
-      .message("Ha ocurrido un error inesperado.")
-      .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-      .timestamp(LocalDateTime.now())
-      .build();
-
-    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-      response
-    );
-  } */
+  record ErrorResponse(String message, int status) {}
+}

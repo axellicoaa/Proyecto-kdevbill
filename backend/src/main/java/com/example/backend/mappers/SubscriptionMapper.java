@@ -16,6 +16,9 @@ public class SubscriptionMapper {
       .startDate(s.getStartDate())
       .nextBillingDate(s.getNextBillingDate())
       .createdAt(s.getCreatedAt())
+      .monthlyPrice(s.getPlan().getPriceMonthly())
+      .yearlyPrice(s.getPlan().getPriceYearly())
+      .billingCycle(s.getBillingCycle())
       .build();
   }
 }

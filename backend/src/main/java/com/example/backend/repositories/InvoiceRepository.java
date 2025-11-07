@@ -28,4 +28,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     InvoiceStatus status,
     Long ownerId
   );
+  boolean existsBySubscriptionIdAndStatus(
+    Long subscriptionId,
+    InvoiceStatus status
+  );
 }
